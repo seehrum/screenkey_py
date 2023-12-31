@@ -8,13 +8,13 @@ environ['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
 import os
 
 def clear_screen():
-    os_name = os.name  # 'nt' for Windows, 'posix' for Unix/Linux/macOS
+    os_name = os.name  # 'nt' para Windows, 'posix' para Unix/Linux/macOS
     if os_name == 'nt':
         os.system('cls')
     else:
         os.system('clear')
 
-clear_screen()  # This will clear the terminal screen
+clear_screen()  # Isso limpará a tela do terminal
 
 # Configuração do tamanho da tela
 screen_width, screen_height = 300, 100
@@ -101,12 +101,12 @@ special_keys = {
 }
 
 # Função para limpar a tela após um tempo
-def clear_screen():
+def pygame_clear_screen():
     global current_text, timer
     if running:
         current_text = []
         update_screen()
-        timer = threading.Timer(clear_delay, clear_screen)
+        timer = threading.Timer(clear_delay, pygame_clear_screen)
         timer.start()
 
 # Atualiza a tela
@@ -191,7 +191,7 @@ mouse_listener = mouse.Listener(on_click=on_click, on_scroll=on_scroll)
 mouse_listener.start()
 
 # Inicializa limpeza da tela
-clear_screen()
+pygame_clear_screen()
 
 # Encerrar as threads e o Pygame de maneira limpa
 def shutdown():
