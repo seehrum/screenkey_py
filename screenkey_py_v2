@@ -1,0 +1,203 @@
+import pygame
+from pygame.locals import *
+from pynput import keyboard, mouse
+import threading
+import time
+
+# Configuração do tamanho da tela
+screen_width, screen_height = 300, 100
+
+# Inicialização do Pygame e configurações
+pygame.init()
+font = pygame.font.Font(None, 33)  # Tamanho da fonte principal
+button_font = pygame.font.Font(None, 24)  # Tamanho da fonte do botão
+
+screen = pygame.display.set_mode((screen_width, screen_height))
+pygame.display.set_caption("Screenkey")
+
+# Desenho do botão de fechar
+button_color = (200, 0, 0)  # Vermelho
+button_width, button_height = 50, 15  # Tamanho do botão
+button_x, button_y = screen_width - button_width - 5, 5  # Posição do botão
+button_rect = pygame.Rect(button_x, button_y, button_width, button_height)
+button_text = button_font.render('X', True, (255, 255, 255))
+
+# Função para desenhar o botão de fechar
+def draw_close_button():
+    pygame.draw.rect(screen, button_color, button_rect)
+    text_rect = button_text.get_rect(center=(button_x + button_width / 2, button_y + button_height / 2))
+    screen.blit(button_text, text_rect)
+
+# Variáveis de controle
+current_text = []
+clear_delay = 3  # Tempo para limpar a tela
+key_pressed = set()  # Conjunto para armazenar teclas pressionadas
+running = True  # Controla o loop principal
+timer = None  # Timer para limpar a tela
+last_key_press_time = 0  # Tempo do último pressionamento de tecla
+
+# Constante para o tempo mínimo entre pressionamentos separados (em segundos)
+MIN_KEY_PRESS_INTERVAL = 0.5
+
+# Mapeamento de teclas especiais
+special_keys = {
+    keyboard.Key.space: 'Spacebar',
+    keyboard.Key.left: 'Left Arrow',
+    keyboard.Key.right: 'Right Arrow',
+    keyboard.Key.up: 'Up Arrow',
+    keyboard.Key.down: 'Down Arrow',
+    keyboard.Key.shift: 'Shift',
+    keyboard.Key.shift_r: 'Right Shift',
+    keyboard.Key.ctrl: 'Control',
+    keyboard.Key.ctrl_r: 'Right Control',
+    keyboard.Key.alt: 'Alt',
+    keyboard.Key.alt_r: 'Right Alt',
+    keyboard.Key.menu: 'Menu',
+    keyboard.Key.cmd: 'Windows key',
+    keyboard.Key.cmd_r: 'Right Windows key',
+    keyboard.Key.esc: 'Esc',
+    keyboard.Key.tab: 'Tab',
+    keyboard.Key.caps_lock: 'Caps lock key',
+    keyboard.Key.f1: 'F1',
+    keyboard.Key.f2: 'F2',
+    keyboard.Key.f3: 'F3',
+    keyboard.Key.f4: 'F4',
+    keyboard.Key.f5: 'F5',
+    keyboard.Key.f6: 'F6',
+    keyboard.Key.f7: 'F7',
+    keyboard.Key.f8: 'F8',
+    keyboard.Key.f9: 'F9',
+    keyboard.Key.f10: 'F10',
+    keyboard.Key.f11: 'F11',
+    keyboard.Key.f12: 'F12',
+    keyboard.Key.backspace: 'Backspace',
+    keyboard.Key.enter: 'Enter',
+    keyboard.Key.delete: 'Delete',
+    keyboard.Key.home: 'Home',
+    keyboard.Key.page_up: 'Page Up',
+    keyboard.Key.page_down: 'Page Down',
+    keyboard.Key.end: 'End',
+    keyboard.Key.num_lock: 'Num Lock',
+    keyboard.Key.insert: 'Insert',
+    keyboard.Key.print_screen: 'Print Screen',
+    keyboard.Key.scroll_lock: 'Scroll Lock',
+    keyboard.Key.pause: 'Pause'
+}
+
+# Função para limpar a tela após um tempo
+def clear_screen():
+    global current_text, timer
+    if running:
+        current_text = []
+        update_screen()
+        timer = threading.Timer(clear_delay, clear_screen)
+        timer.start()
+
+# Atualiza a tela
+def update_screen():
+    if running:
+        screen.fill((0, 0, 0))
+        draw_close_button()
+        for i, line in enumerate(current_text):
+            text = font.render(line, True, (255, 255, 255))
+            screen.blit(text, (10, 10 + i * font.get_height()))
+        pygame.display.flip()
+
+# Adiciona texto à tela
+def add_text(text):
+    global current_text
+    current_text.append(text)
+    if len(current_text) * font.get_height() > screen_height:
+        current_text.pop(0)
+    update_screen()
+
+# Formata a exibição de teclas pressionadas
+def format_key_output():
+    modifier_key_names = [keyboard.Key.shift, keyboard.Key.shift_r, keyboard.Key.ctrl, keyboard.Key.ctrl_r, keyboard.Key.alt, keyboard.Key.alt_r, keyboard.Key.cmd, keyboard.Key.cmd_r]
+    modifiers = [key for key in key_pressed if key in modifier_key_names]
+    non_modifiers = [key for key in key_pressed if key not in modifier_key_names]
+
+    formatted_keys = []
+    for key in modifiers + non_modifiers:
+        if key in special_keys:
+            formatted_keys.append(special_keys[key].upper())
+        elif hasattr(key, 'char') and key.char:
+            formatted_keys.append(f"{key.char.upper()}")
+        else:
+            formatted_keys.append(str(key).upper())
+    return ' + '.join(formatted_keys)
+
+# Gerencia a liberação de teclas
+def on_key_release(key):
+    global key_pressed, last_key_press_time
+    current_time = time.time()
+    if current_time - last_key_press_time > MIN_KEY_PRESS_INTERVAL:
+        key_pressed.clear()
+    if key in key_pressed:
+        key_pressed.remove(key)
+
+# Gerencia pressionamento de teclas
+def on_key_press(key):
+    global key_pressed, last_key_press_time
+    current_time = time.time()
+    if current_time - last_key_press_time > MIN_KEY_PRESS_INTERVAL:
+        key_pressed.clear()
+    key_pressed.add(key)
+    add_text(format_key_output())
+    last_key_press_time = current_time
+
+# Listener do teclado
+keyboard_listener = keyboard.Listener(on_press=on_key_press, on_release=on_key_release)
+keyboard_listener.start()
+
+# Mapeamento de botões do mouse
+mouse_buttons = {
+    mouse.Button.left: 'Left Click',
+    mouse.Button.right: 'Right Click',
+    mouse.Button.middle: 'Middle Click',
+    # Adicione outros mapeamentos conforme necessário
+}
+
+# Eventos do mouse
+def on_click(x, y, button, pressed):
+    if pressed:
+        button_text = mouse_buttons.get(button, str(button))  # Pega o texto do dicionário ou usa a representação padrão do botão
+        add_text(button_text.upper())
+
+def on_scroll(x, y, dx, dy):
+    if dy > 0:
+        add_text("Scroll Wheel Up".upper())
+    elif dy < 0:
+        add_text("Scroll Wheel Down".upper())
+
+# Listener do mouse
+mouse_listener = mouse.Listener(on_click=on_click, on_scroll=on_scroll)
+mouse_listener.start()
+
+# Inicializa limpeza da tela
+clear_screen()
+
+# Encerrar as threads e o Pygame de maneira limpa
+def shutdown():
+    global running, timer
+    running = False
+    if timer:
+        timer.cancel()
+    keyboard_listener.stop()
+    mouse_listener.stop()
+    pygame.quit()
+
+# Loop principal
+try:
+    while running:
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                shutdown()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:  # Botão esquerdo do mouse
+                    mouse_x, mouse_y = event.pos
+                    if button_rect.collidepoint(mouse_x, mouse_y):
+                        shutdown()
+except Exception as e:
+    print(f"Erro ocorrido: {e}")
+    shutdown()
