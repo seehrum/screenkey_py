@@ -30,7 +30,7 @@ def draw_close_button():
 
 # Variáveis de controle
 current_text = []
-clear_delay = 3  # Tempo para limpar a tela
+clear_delay = 3600  # Tempo para limpar a tela
 key_pressed = set()  # Conjunto para armazenar teclas pressionadas
 running = True  # Controla o loop principal
 timer = None  # Timer para limpar a tela
@@ -81,7 +81,11 @@ special_keys = {
     keyboard.Key.insert: 'Insert',
     keyboard.Key.print_screen: 'Print Screen',
     keyboard.Key.scroll_lock: 'Scroll Lock',
-    keyboard.Key.pause: 'Pause'
+    keyboard.Key.pause: 'Pause',
+    # Add Numpad 5, AltGr, and Numpad ,
+    keyboard.KeyCode.from_vk(65437): '5',       # Numpad 5
+    keyboard.KeyCode.from_vk(65027): 'AltGr',   # AltGr
+    keyboard.KeyCode.from_vk(65439): ','        # Numpad ,
 }
 
 # Função para limpar a tela após um tempo
