@@ -7,17 +7,24 @@ import threading
 import time
 
 # Configuration Settings
+PROJECT_VERSION = 'Screenkey v3.2'
 SCREEN_WIDTH = 300
 SCREEN_HEIGHT = 100
 FONT_SIZE = 33
 BUTTON_FONT_SIZE = 24
-ENABLE_LOGGING = True
+ENABLE_LOGGING = False
 LOG_FILE = 'input_log.txt'
 BUTTON_COLOR = (200, 0, 0)  # Red
 BACKGROUND_COLOR = (0, 0, 0)
 TEXT_COLOR = (255, 255, 255)
 CLEAR_DELAY = 3600
-MIN_KEY_PRESS_INTERVAL = 0.4
+MIN_KEY_PRESS_INTERVAL = 0.5
+
+def clear_console():
+    """
+    Clears the console screen.
+    """
+    os.system('cls' if os.name == 'nt' else 'clear')
 
 class InputDisplay:
     """
@@ -45,6 +52,8 @@ class InputDisplay:
         self.initialize_pygame()
         self.initialize_listeners()
         self.initialize_screen_elements()
+        clear_console()
+        print(PROJECT_VERSION)
 
     def setup_environment(self):
         """
@@ -159,7 +168,9 @@ class InputDisplay:
             keyboard.Key.pause: 'Pause',
             keyboard.KeyCode.from_vk(65437): '5',
             keyboard.KeyCode.from_vk(65027): 'AltGr',
-            keyboard.KeyCode.from_vk(65439): ','
+            keyboard.KeyCode.from_vk(65511): 'Alt',
+            keyboard.KeyCode.from_vk(65439): ',',
+            keyboard.KeyCode.from_vk(65452): ',',
         }
 
     def draw_close_button(self):
@@ -252,9 +263,9 @@ class InputDisplay:
         Returns a dictionary mapping mouse buttons to their display names.
         """
         return {
-            mouse.Button.left: 'Left Click',
-            mouse.Button.right: 'Right Click',
-            mouse.Button.middle: 'Middle Click'
+            mouse.Button.left: 'Left Click'.upper(),
+            mouse.Button.right: 'Right Click'.upper(),
+            mouse.Button.middle: 'Middle Click'.upper()
         }
 
     def on_click(self, x, y, button, pressed):
@@ -270,9 +281,9 @@ class InputDisplay:
         Handles mouse scroll events.
         """
         if dy > 0:
-            self.add_text("Scroll Wheel Up")
+            self.add_text("Scroll Wheel Up".upper())
         elif dy < 0:
-            self.add_text("Scroll Wheel Down")
+            self.add_text("Scroll Wheel Down".upper())
 
     def shutdown(self):
         """
