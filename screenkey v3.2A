@@ -64,14 +64,26 @@ class ScreenkeyApp:
         self.settings_menu.add_command(label="Exit", command=self.exit_app)  # Exit option
 
     def setup_listeners(self):
-        # Setting up global listeners for mouse and local listener for keyboard
+        # Setting up global listeners for mouse and keyboard
         try:
             self.mouse_listener = mouse.Listener(on_click=self.on_click, on_scroll=self.on_scroll)
             self.mouse_listener.start()
 
-            self.root.bind("<KeyPress>", self.key_pressed)
+            self.keyboard_listener = keyboard.Listener(on_press=self.on_press)
+            self.keyboard_listener.start()
         except Exception as e:
             messagebox.showerror("Error", f"Failed to setup listeners: {e}")
+
+    def on_press(self, key):
+        # Handling global key press event
+        try:
+            key_text = f"Key pressed: {key.char if hasattr(key, 'char') else key}"
+        except AttributeError:
+            key_text = f"Special key pressed: {key}"
+        self.action_history.append(key_text)
+        self.update_action_text()
+        if self.log_keyboard:
+            self.logger.info(key_text)
 
     def toggle_keyboard_logging(self):
         # Toggling the logging state for keyboard actions
@@ -85,14 +97,6 @@ class ScreenkeyApp:
         # Toggling the always on top state for the application window
         self.always_on_top = not self.always_on_top
         self.root.attributes("-topmost", self.always_on_top)
-
-    def key_pressed(self, event):
-        # Handling the key pressed event
-        key_text = f"Key pressed: {event.keysym}"
-        self.action_history.append(key_text)
-        self.update_action_text()
-        if self.log_keyboard:
-            self.logger.info(key_text)
 
     def on_click(self, x, y, button, pressed):
         # Handling the mouse click event
