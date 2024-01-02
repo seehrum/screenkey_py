@@ -81,7 +81,7 @@ class InputDisplay:
         self.font = pygame.font.SysFont(None, self.font_size)
         self.button_font = pygame.font.SysFont(None, self.button_font_size)
         self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
-        pygame.display.set_caption("Input Display")
+        pygame.display.set_caption("Screenkey v3.2")
 
     def initialize_listeners(self):
         """
