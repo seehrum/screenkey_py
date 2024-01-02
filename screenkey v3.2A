@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from pynput import mouse, keyboard
+from pynput.keyboard import Key
 import logging
 
 # Configuration Variables
@@ -76,10 +77,21 @@ class ScreenkeyApp:
 
     def on_press(self, key):
         # Handling global key press event
-        try:
-            key_text = f"Key pressed: {key.char if hasattr(key, 'char') else key}"
-        except AttributeError:
-            key_text = f"Special key pressed: {key}"
+        if hasattr(key, 'char') and key.char is not None:
+            key_text = f"Key pressed: {key.char}"
+        else:
+            # Special keys
+            if key == Key.space:
+                key_text = "Space"
+            elif key == Key.enter:
+                key_text = "Enter"
+            elif key == Key.tab:
+                key_text = "Tab"
+            elif key == Key.esc:
+                key_text = "Escape"
+            # Add more special key handling here if needed
+            else:
+                key_text = f"Special key pressed: {key}"
         self.action_history.append(key_text)
         self.update_action_text()
         if self.log_keyboard:
