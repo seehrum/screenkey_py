@@ -23,7 +23,11 @@ CONFIG = {
 
 # Configure logging
 if CONFIG["enable_logging"]:
-    logging.basicConfig(filename=CONFIG["log_file"], level=logging.INFO, format='%(asctime)s: %(message)s')
+    logging.basicConfig(
+        filename=CONFIG["log_file"], 
+        level=logging.INFO, 
+        format='%(asctime)s: [%(levelname)s] %(message)s'
+    )
 
 class ListenerThread(Thread):
     """
@@ -38,8 +42,11 @@ class ListenerThread(Thread):
         self.mouse_action_map = self.get_mouse_actions()
 
     def get_special_keys(self):
+        """
+        Maps special keyboard keys to their string representations.
+        """
         return {
-                    keyboard.Key.space: 'Spacebar',
+            keyboard.Key.space: 'Spacebar',
             keyboard.Key.left: 'Left Arrow',
             keyboard.Key.right: 'Right Arrow',
             keyboard.Key.up: 'Up Arrow',
@@ -88,26 +95,37 @@ class ListenerThread(Thread):
         }
 
     def get_mouse_actions(self):
+        """
+        Maps mouse actions to their string representations.
+        """
         return {
             'Button.left': 'Left Click',
             'Button.right': 'Right Click',
             'Button.middle': 'Middle Click',
             'Scroll up': 'Scroll Up',
             'Scroll down': 'Scroll Down',
-            # ... Add other mouse actions as needed
         }
 
     def run(self):
-        def get_key_info(key):
-            if key in self.special_key_map:
-                return self.special_key_map[key]
-            try:
-                return key.char if key.char is not None else key.name
-            except AttributeError:
-                return str(key)
+        """
+        Runs the thread that listens for keyboard and mouse events.
+        """
+        try:
+            with keyboard.Listener(on_press=self.on_press, 
+                                   on_release=self.on_release) as keyboard_listener, \
+                 mouse.Listener(on_click=self.on_click, 
+                                on_scroll=self.on_scroll) as mouse_listener:
+                while not self.stop_event.is_set():
+                    self.stop_event.wait(0.1)
+        except Exception as e:
+            logging.error(f"Listener thread encountered an error: {e}")
 
-        def on_press(key):
-            key_info = get_key_info(key)
+    def on_press(self, key):
+        """
+        Handles the on_press event for keyboard keys.
+        """
+        try:
+            key_info = self.get_key_info(key)
             if key in {keyboard.Key.shift, keyboard.Key.ctrl, keyboard.Key.alt}:
                 self.special_keys.add(key_info)
             else:
@@ -120,13 +138,25 @@ class ListenerThread(Thread):
             self.update_method(key_info)
             if CONFIG["enable_logging"]:
                 logging.info(f"Key pressed: {key_info}")
+        except Exception as e:
+            logging.error(f"Error in on_press: {e}")
 
-        def on_release(key):
-            key_info = get_key_info(key)
+    def on_release(self, key):
+        """
+        Handles the on_release event for keyboard keys.
+        """
+        try:
+            key_info = self.get_key_info(key)
             if key_info in self.special_keys:
                 self.special_keys.remove(key_info)
+        except Exception as e:
+            logging.error(f"Error in on_release: {e}")
 
-        def on_click(x, y, button, pressed):
+    def on_click(self, x, y, button, pressed):
+        """
+        Handles the on_click event for mouse buttons.
+        """
+        try:
             if pressed:
                 button_info = self.mouse_action_map.get(str(button), str(button))
                 if CONFIG["uppercase"]:
@@ -134,8 +164,14 @@ class ListenerThread(Thread):
                 self.update_method(button_info)
                 if CONFIG["enable_logging"]:
                     logging.info(f"Mouse clicked: {button_info}")
+        except Exception as e:
+            logging.error(f"Error in on_click: {e}")
 
-        def on_scroll(x, y, dx, dy):
+    def on_scroll(self, x, y, dx, dy):
+        """
+        Handles the on_scroll event for mouse scrolling.
+        """
+        try:
             direction = 'Scroll up' if dy > 0 else 'Scroll down'
             scroll_info = self.mouse_action_map.get(direction, direction)
             if CONFIG["uppercase"]:
@@ -143,11 +179,19 @@ class ListenerThread(Thread):
             self.update_method(scroll_info)
             if CONFIG["enable_logging"]:
                 logging.info(f"Mouse scrolled: {scroll_info}")
+        except Exception as e:
+            logging.error(f"Error in on_scroll: {e}")
 
-        with keyboard.Listener(on_press=on_press, on_release=on_release) as keyboard_listener, \
-             mouse.Listener(on_click=on_click, on_scroll=on_scroll) as mouse_listener:
-            while not self.stop_event.is_set():
-                self.stop_event.wait(0.1)
+    def get_key_info(self, key):
+        """
+        Retrieves string representation for a given keyboard key.
+        """
+        if key in self.special_key_map:
+            return self.special_key_map[key]
+        try:
+            return key.char if key.char is not None else key.name
+        except AttributeError:
+            return str(key)
 
 class ScreenkeyApp(tk.Tk):
     """
@@ -161,22 +205,33 @@ class ScreenkeyApp(tk.Tk):
         self.listener_thread.start()
 
     def init_ui(self):
+        """
+        Initializes the user interface of the application.
+        """
         self.geometry(f"{CONFIG['window_width']}x{CONFIG['window_height']}+{CONFIG['window_x_position']}+{CONFIG['window_y_position']}")
         self.title('Screenkey v3.3')
         if CONFIG["always_on_top"]:
             self.attributes('-topmost', True)
 
-        self.label = tk.Label(self, text="", font=(CONFIG["font_type"], CONFIG["font_size"], "bold" if CONFIG["font_bold"] else "normal"))
+        self.label = tk.Label(self, text="", 
+                              font=(CONFIG["font_type"], CONFIG["font_size"], 
+                                    "bold" if CONFIG["font_bold"] else "normal"))
         self.label.pack(expand=True)
 
         self.configure(bg=CONFIG["background_color"])
         self.label.configure(fg=CONFIG["text_color"], bg=CONFIG["background_color"])
 
     def update_display(self, text):
+        """
+        Updates the display with the provided text.
+        """
         if not self.stop_event.is_set():
             self.label.config(text=text)
 
     def on_close(self):
+        """
+        Handles the closing event of the application.
+        """
         self.stop_event.set()
         self.listener_thread.join()
         self.destroy()
