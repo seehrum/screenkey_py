@@ -162,7 +162,7 @@ class ScreenkeyApp(tk.Tk):
 
     def init_ui(self):
         self.geometry(f"{CONFIG['window_width']}x{CONFIG['window_height']}+{CONFIG['window_x_position']}+{CONFIG['window_y_position']}")
-        self.title('Screenkey')
+        self.title('Screenkey v3.3')
         if CONFIG["always_on_top"]:
             self.attributes('-topmost', True)
 
