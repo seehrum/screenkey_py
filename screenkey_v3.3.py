@@ -1,11 +1,10 @@
 import sys
 import logging
-from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QHBoxLayout
-from PyQt5.QtCore import pyqtSignal, QThread, Qt
-from PyQt5.QtGui import QFont, QColor, QPalette
+import tkinter as tk
 from pynput import mouse, keyboard
+from threading import Thread, Event
 
-# Global Constants for Customization
+# Configuration settings
 CONFIG = {
     "font_size": 16,
     "font_bold": True,
@@ -19,27 +18,28 @@ CONFIG = {
     "always_on_top": True,
     "enable_logging": True,
     "log_file": "key_log.txt",
-    "font_type": "Arial"  # Added font type to CONFIG
+    "font_type": "Arial"
 }
 
 # Configure logging
 if CONFIG["enable_logging"]:
     logging.basicConfig(filename=CONFIG["log_file"], level=logging.INFO, format='%(asctime)s: %(message)s')
 
-class ListenerThread(QThread):
-    keyPressed = pyqtSignal(str)
-    mouseAction = pyqtSignal(str)
-
-    def __init__(self):
+class ListenerThread(Thread):
+    """
+    A thread class for listening to keyboard and mouse events.
+    """
+    def __init__(self, update_method, stop_event):
         super().__init__()
+        self.update_method = update_method
+        self.stop_event = stop_event
         self.special_keys = set()
         self.special_key_map = self.get_special_keys()
         self.mouse_action_map = self.get_mouse_actions()
 
     def get_special_keys(self):
-        # Returns a dictionary mapping special keys to their descriptions
         return {
-            keyboard.Key.space: 'Spacebar',
+                    keyboard.Key.space: 'Spacebar',
             keyboard.Key.left: 'Left Arrow',
             keyboard.Key.right: 'Right Arrow',
             keyboard.Key.up: 'Up Arrow',
@@ -88,119 +88,103 @@ class ListenerThread(QThread):
         }
 
     def get_mouse_actions(self):
-        # Returns a dictionary mapping mouse actions to their descriptions
         return {
             'Button.left': 'Left Click',
             'Button.right': 'Right Click',
             'Button.middle': 'Middle Click',
             'Scroll up': 'Scroll Up',
             'Scroll down': 'Scroll Down',
-            # Additional mappings as needed
+            # ... Add other mouse actions as needed
         }
 
     def run(self):
-        # Main method to start listeners for keyboard and mouse events
-        try:
-            def get_key_info(key):
-                # Retrieves information about the key
-                if key in self.special_key_map:
-                    return self.special_key_map[key]
-                try:
-                    return key.char if key.char is not None else key.name
-                except AttributeError:
-                    return str(key)
+        def get_key_info(key):
+            if key in self.special_key_map:
+                return self.special_key_map[key]
+            try:
+                return key.char if key.char is not None else key.name
+            except AttributeError:
+                return str(key)
 
-            def on_press(key):
-                # Handles key press events
-                key_info = get_key_info(key)
-                if key in {keyboard.Key.shift, keyboard.Key.ctrl, keyboard.Key.alt}:
-                    self.special_keys.add(key_info)
-                else:
-                    key_info = ' + '.join(sorted(self.special_keys) + [key_info])
+        def on_press(key):
+            key_info = get_key_info(key)
+            if key in {keyboard.Key.shift, keyboard.Key.ctrl, keyboard.Key.alt}:
+                self.special_keys.add(key_info)
+            else:
+                valid_keys = [k for k in self.special_keys if k]
+                key_info = ' + '.join(sorted(valid_keys) + [key_info])
 
+            if CONFIG["uppercase"]:
+                key_info = key_info.upper()
+
+            self.update_method(key_info)
+            if CONFIG["enable_logging"]:
+                logging.info(f"Key pressed: {key_info}")
+
+        def on_release(key):
+            key_info = get_key_info(key)
+            if key_info in self.special_keys:
+                self.special_keys.remove(key_info)
+
+        def on_click(x, y, button, pressed):
+            if pressed:
+                button_info = self.mouse_action_map.get(str(button), str(button))
                 if CONFIG["uppercase"]:
-                    key_info = key_info.upper()
-
-                self.keyPressed.emit(key_info)
+                    button_info = button_info.upper()
+                self.update_method(button_info)
                 if CONFIG["enable_logging"]:
-                    logging.info(f"Key pressed: {key_info}")
+                    logging.info(f"Mouse clicked: {button_info}")
 
-            def on_release(key):
-                # Handles key release events
-                key_info = get_key_info(key)
-                if key_info in self.special_keys:
-                    self.special_keys.remove(key_info)
+        def on_scroll(x, y, dx, dy):
+            direction = 'Scroll up' if dy > 0 else 'Scroll down'
+            scroll_info = self.mouse_action_map.get(direction, direction)
+            if CONFIG["uppercase"]:
+                scroll_info = scroll_info.upper()
+            self.update_method(scroll_info)
+            if CONFIG["enable_logging"]:
+                logging.info(f"Mouse scrolled: {scroll_info}")
 
-            def on_click(x, y, button, pressed):
-                # Handles mouse click events
-                if pressed:
-                    button_info = self.mouse_action_map.get(str(button), str(button))
-                    self.mouseAction.emit(button_info.upper() if CONFIG["uppercase"] else button_info)
-                    if CONFIG["enable_logging"]:
-                        logging.info(f"Mouse clicked: {button_info}")
+        with keyboard.Listener(on_press=on_press, on_release=on_release) as keyboard_listener, \
+             mouse.Listener(on_click=on_click, on_scroll=on_scroll) as mouse_listener:
+            while not self.stop_event.is_set():
+                self.stop_event.wait(0.1)
 
-            def on_scroll(x, y, dx, dy):
-                # Handles mouse scroll events
-                direction = 'Scroll up' if dy > 0 else 'Scroll down'
-                scroll_info = self.mouse_action_map.get(direction, direction)
-                self.mouseAction.emit(scroll_info.upper() if CONFIG["uppercase"] else scroll_info)
-                if CONFIG["enable_logging"]:
-                    logging.info(f"Mouse scrolled: {scroll_info}")
-
-            # Start listeners
-            with keyboard.Listener(on_press=on_press, on_release=on_release) as keyboard_listener, \
-                 mouse.Listener(on_click=on_click, on_scroll=on_scroll) as mouse_listener:
-                keyboard_listener.join()
-                mouse_listener.join()
-        except Exception as e:
-            # Logging any exceptions in the listener thread
-            logging.error(f"Error in listener thread: {e}")
-
-class ScreenkeyApp(QWidget):
+class ScreenkeyApp(tk.Tk):
+    """
+    Main application class for Screenkey using Tkinter.
+    """
     def __init__(self):
         super().__init__()
         self.init_ui()
+        self.stop_event = Event()
+        self.listener_thread = ListenerThread(self.update_display, self.stop_event)
+        self.listener_thread.start()
 
     def init_ui(self):
-        # Initialize the UI elements of the application
-        try:
-            self.setGeometry(CONFIG["window_x_position"], CONFIG["window_y_position"],
-                             CONFIG["window_width"], CONFIG["window_height"])
-            self.setWindowTitle('Screenkey')
-            self.setWindowFlags(Qt.WindowStaysOnTopHint if CONFIG["always_on_top"] else Qt.Widget)
+        self.geometry(f"{CONFIG['window_width']}x{CONFIG['window_height']}+{CONFIG['window_x_position']}+{CONFIG['window_y_position']}")
+        self.title('Screenkey')
+        if CONFIG["always_on_top"]:
+            self.attributes('-topmost', True)
 
-            self.label = QLabel(self)
-            font = QFont(CONFIG["font_type"], CONFIG["font_size"])
-            font.setBold(CONFIG["font_bold"])
-            self.label.setFont(font)
-            self.label.setAlignment(Qt.AlignCenter)
+        self.label = tk.Label(self, text="", font=(CONFIG["font_type"], CONFIG["font_size"], "bold" if CONFIG["font_bold"] else "normal"))
+        self.label.pack(expand=True)
 
-            palette = self.palette()
-            palette.setColor(QPalette.Window, QColor(CONFIG["background_color"]))
-            palette.setColor(QPalette.WindowText, QColor(CONFIG["text_color"]))
-            self.setPalette(palette)
-
-            layout = QHBoxLayout()
-            layout.addWidget(self.label)
-            self.setLayout(layout)
-
-            self.thread = ListenerThread()
-            self.thread.keyPressed.connect(self.update_display)
-            self.thread.mouseAction.connect(self.update_display)
-            self.thread.start()
-        except Exception as e:
-            logging.error(f"Error initializing Screenkey UI: {e}")
+        self.configure(bg=CONFIG["background_color"])
+        self.label.configure(fg=CONFIG["text_color"], bg=CONFIG["background_color"])
 
     def update_display(self, text):
-        # Update the display label with the provided text
-        self.label.clear()
-        self.label.setText(text)
+        if not self.stop_event.is_set():
+            self.label.config(text=text)
+
+    def on_close(self):
+        self.stop_event.set()
+        self.listener_thread.join()
+        self.destroy()
 
 if __name__ == '__main__':
     try:
-        app = QApplication(sys.argv)
-        ex = ScreenkeyApp()
-        ex.show()
-        sys.exit(app.exec_())
+        app = ScreenkeyApp()
+        app.protocol("WM_DELETE_WINDOW", app.on_close)
+        app.mainloop()
     except Exception as e:
         logging.error(f"Error in main execution: {e}")
