@@ -2,7 +2,7 @@ import sys
 import logging
 import tkinter as tk
 from pynput import mouse, keyboard
-from threading import Thread, Event
+from threading import Thread, Event, Timer
 
 # Configuration settings
 CONFIG = {
@@ -18,7 +18,9 @@ CONFIG = {
     "always_on_top": True,
     "enable_logging": True,
     "log_file": "key_log.txt",
-    "font_type": "Arial"
+    "font_type": "Arial",
+    "clear_text": False,  # New option to activate/deactivate auto-clear
+    "clear_text_duration": 5    # Time (in seconds) before text is cleared
 }
 
 # Configure logging
@@ -199,6 +201,7 @@ class ScreenkeyApp(tk.Tk):
     """
     def __init__(self):
         super().__init__()
+        self.clear_timer = None  # Holds the timer object
         self.init_ui()
         self.stop_event = Event()
         self.listener_thread = ListenerThread(self.update_display, self.stop_event)
@@ -228,12 +231,27 @@ class ScreenkeyApp(tk.Tk):
         if not self.stop_event.is_set():
             self.label.config(text=text)
 
+            # Clear the text after a certain duration if the option is enabled
+            if CONFIG["clear_text"]:
+                if self.clear_timer is not None:
+                    self.clear_timer.cancel()
+                self.clear_timer = Timer(CONFIG["clear_text_duration"], self.clear_display)
+                self.clear_timer.start()
+
+    def clear_display(self):
+        """
+        Clears the display text.
+        """
+        self.label.config(text="")
+
     def on_close(self):
         """
         Handles the closing event of the application.
         """
         self.stop_event.set()
         self.listener_thread.join()
+        if self.clear_timer is not None:
+            self.clear_timer.cancel()
         self.destroy()
 
 if __name__ == '__main__':
