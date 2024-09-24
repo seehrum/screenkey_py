@@ -113,13 +113,14 @@ class ListenerThread(Thread):
         }
 
     def run(self):
+        # Start listening for keyboard and mouse events in a separate thread
         try:
             with keyboard.Listener(on_press=self.on_press,
                                    on_release=self.on_release) as keyboard_listener, \
                  mouse.Listener(on_click=self.on_click,
                                 on_scroll=self.on_scroll) as mouse_listener:
-                while not self.stop_event.is_set():
-                    self.stop_event.wait(0.1)
+                keyboard_listener.join()
+                mouse_listener.join()
         except Exception as e:
             logging.error(f"Listener thread encountered an error: {e}")
 
@@ -136,10 +137,8 @@ class ListenerThread(Thread):
                 self.update_method(key_info)
 
             else:
-                # Fix for handling CTRL + A or other character combinations
-                key_char = self.get_character_from_key(key)
-
                 # Combine modifier keys with regular key presses
+                key_char = self.get_character_from_key(key)
                 combined_keys = ' + '.join(sorted(self.active_modifiers) + [key_char])
                 display_text = self.process_key_case(combined_keys)
                 self.update_method(display_text)
