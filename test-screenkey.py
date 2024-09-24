@@ -8,12 +8,10 @@ from threading import Thread, Event, Timer
 # Platform-specific configuration for handling key mappings or other features
 if sys.platform == "win32":
     platform_name = "Windows"
-    # Key mappings specific to Windows
     special_key_cmd = keyboard.Key.cmd
 elif sys.platform == "linux":
     platform_name = "Linux"
-    # Key mappings specific to Linux (Windows key is sometimes called "Super")
-    special_key_cmd = keyboard.Key.alt  # You can replace this with the actual key for the Linux Windows key
+    special_key_cmd = keyboard.Key.alt
 else:
     platform_name = "Unknown"
 
@@ -27,8 +25,8 @@ CONFIG = {
     "window_y_position": 300,
     "text_color": "#FFFFFF",
     "background_color": "#000000",
-    "uppercase": True,  # Option to always log uppercase
-    "log_case_sensitive": False,  # New option to log exact case
+    "uppercase": True,
+    "log_case_sensitive": False,
     "always_on_top": True,
     "enable_logging": True,
     "log_file": os.path.join(os.getcwd(), "key_log.txt"),
@@ -54,8 +52,9 @@ class ListenerThread(Thread):
         self.update_method = update_method
         self.stop_event = stop_event
         self.special_keys = set()
-        self.caps_lock_on = False  # Track the Caps Lock state
-        self.shift_pressed = False  # Track if Shift is pressed
+        self.active_modifiers = set()  # To track active modifier keys
+        self.caps_lock_on = False
+        self.shift_pressed = False
         self.special_key_map = self.get_special_keys()
         self.mouse_action_map = self.get_mouse_actions()
 
@@ -133,22 +132,12 @@ class ListenerThread(Thread):
         try:
             key_info = self.get_key_info(key)
 
-            # Handle shift, ctrl, alt key presses
-            if key in {keyboard.Key.shift, keyboard.Key.shift_r, keyboard.Key.ctrl, keyboard.Key.ctrl_r, keyboard.Key.alt, special_key_cmd, keyboard.Key.alt_r}:
-                self.special_keys.add(key_info)
-                special_keys_combination = ' + '.join(sorted(self.special_keys))
-
-                # Ensure special keys are shown in uppercase
-                if CONFIG["uppercase"]:
-                    special_keys_combination = special_keys_combination.upper()
-
-                self.update_method(special_keys_combination)  # Display special key pressed alone
-                if CONFIG["enable_logging"]:
-                    logging.info(f"Key pressed: {special_keys_combination}")
-
+            # Check if the key is a modifier key (Ctrl, Alt, Shift)
+            if key_info in ["CTRL", "ALT", "ALT GR", "SHIFT"]:
+                self.active_modifiers.add(key_info)
             else:
-                # Combine special keys (if any) with the current key pressed
-                combined_keys = ' + '.join(sorted(self.special_keys) + [key_info])
+                # Combine current modifiers with the key press
+                combined_keys = ' + '.join(sorted(self.active_modifiers) + [key_info])
                 display_text = self.process_key_case(combined_keys)
                 self.update_method(display_text)
 
@@ -169,8 +158,10 @@ class ListenerThread(Thread):
         """
         try:
             key_info = self.get_key_info(key)
-            if key_info in self.special_keys:
-                self.special_keys.remove(key_info)
+            
+            # Remove from active modifiers if it's a modifier key
+            if key_info in self.active_modifiers:
+                self.active_modifiers.remove(key_info)
 
         except Exception as e:
             logging.error(f"Error in on_release: {e}")
@@ -182,8 +173,6 @@ class ListenerThread(Thread):
         try:
             if pressed:
                 button_info = self.mouse_action_map.get(str(button), str(button))
-                
-                # Ensure mouse button info is shown in uppercase
                 if CONFIG["uppercase"]:
                     button_info = button_info.upper()
 
@@ -201,7 +190,6 @@ class ListenerThread(Thread):
             direction = 'Scroll up' if dy > 0 else 'Scroll down'
             scroll_info = self.mouse_action_map.get(direction, direction)
 
-            # Ensure scroll info is shown in uppercase
             if CONFIG["uppercase"]:
                 scroll_info = scroll_info.upper()
 
@@ -215,7 +203,6 @@ class ListenerThread(Thread):
         """
         Retrieves string representation for a given keyboard key.
         """
-
         # Map left/right control, alt, and alt_gr to simpler forms
         if key == keyboard.Key.ctrl_l or key == keyboard.Key.ctrl_r:
             return "CTRL"
@@ -223,6 +210,8 @@ class ListenerThread(Thread):
             return "ALT"
         if key == keyboard.Key.alt_gr:
             return "ALT GR"
+        if key == keyboard.Key.shift or key == keyboard.Key.shift_r:
+            return "SHIFT"
 
         # Add virtual key codes for numpad keys on Windows
         numpad_key_map = {
@@ -232,7 +221,6 @@ class ListenerThread(Thread):
             109: '-', 110: '.', 111: '/',
         }
 
-        # Handle numpad key mapping for Windows
         if hasattr(key, 'vk') and key.vk in numpad_key_map:
             return numpad_key_map[key.vk]
 
@@ -244,7 +232,6 @@ class ListenerThread(Thread):
         try:
             return key.char if key.char is not None else key.name
         except AttributeError:
-            # Handle unknown key (such as <97> issue)
             return f"<{key.vk}>" if hasattr(key, 'vk') else str(key)
 
     def process_key_case(self, key_info, logging_mode=False):
@@ -252,15 +239,13 @@ class ListenerThread(Thread):
         Processes the key case (uppercase/lowercase) based on the configuration and whether logging or display is involved.
         """
         if CONFIG["log_case_sensitive"]:
-            # Determine if the key should be uppercase or lowercase
             is_upper = self.shift_pressed != self.caps_lock_on
             case_indicator = "UP" if is_upper else "LO"
             key_info = key_info.upper() if is_upper else key_info.lower()
             if logging_mode:
-                return f"{key_info} ({case_indicator})"  # Add case info only to the log
+                return f"{key_info} ({case_indicator})"
             return key_info
         else:
-            # If CONFIG["uppercase"] is True, make all keys uppercase
             return key_info.upper() if CONFIG["uppercase"] else key_info
 
 
