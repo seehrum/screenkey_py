@@ -14,20 +14,21 @@ CONFIG = {
     "window_y_position": 300,
     "text_color": "#FFFFFF",
     "background_color": "#000000",
-    "uppercase": True,
+    "uppercase": True,  # Option to always log uppercase
+    "log_case_sensitive": False,  # New option to log exact case
     "always_on_top": True,
     "enable_logging": True,
     "log_file": "key_log.txt",
     "font_type": "Arial",
-    "clear_text": False,  # New option to activate/deactivate auto-clear
-    "clear_text_duration": 5    # Time (in seconds) before text is cleared
+    "clear_text": False,
+    "clear_text_duration": 5
 }
 
 # Configure logging
 if CONFIG["enable_logging"]:
     logging.basicConfig(
-        filename=CONFIG["log_file"], 
-        level=logging.INFO, 
+        filename=CONFIG["log_file"],
+        level=logging.INFO,
         format='%(asctime)s: [%(levelname)s] %(message)s'
     )
 
@@ -40,6 +41,8 @@ class ListenerThread(Thread):
         self.update_method = update_method
         self.stop_event = stop_event
         self.special_keys = set()
+        self.caps_lock_on = False  # Track the Caps Lock state
+        self.shift_pressed = False  # Track if Shift is pressed
         self.special_key_map = self.get_special_keys()
         self.mouse_action_map = self.get_mouse_actions()
 
@@ -97,9 +100,6 @@ class ListenerThread(Thread):
         }
 
     def get_mouse_actions(self):
-        """
-        Maps mouse actions to their string representations.
-        """
         return {
             'Button.left': 'Left Click',
             'Button.right': 'Right Click',
@@ -109,13 +109,10 @@ class ListenerThread(Thread):
         }
 
     def run(self):
-        """
-        Runs the thread that listens for keyboard and mouse events.
-        """
         try:
-            with keyboard.Listener(on_press=self.on_press, 
+            with keyboard.Listener(on_press=self.on_press,
                                    on_release=self.on_release) as keyboard_listener, \
-                 mouse.Listener(on_click=self.on_click, 
+                 mouse.Listener(on_click=self.on_click,
                                 on_scroll=self.on_scroll) as mouse_listener:
                 while not self.stop_event.is_set():
                     self.stop_event.wait(0.1)
@@ -128,18 +125,34 @@ class ListenerThread(Thread):
         """
         try:
             key_info = self.get_key_info(key)
-            if key in {keyboard.Key.shift, keyboard.Key.ctrl, keyboard.Key.alt}:
+
+            # Handle shift, ctrl, alt key presses
+            if key in {keyboard.Key.shift, keyboard.Key.shift_r, keyboard.Key.ctrl, keyboard.Key.ctrl_r, keyboard.Key.alt, keyboard.Key.alt_r}:
                 self.special_keys.add(key_info)
+                special_keys_combination = ' + '.join(sorted(self.special_keys))
+
+                # Ensure special keys are shown in uppercase
+                if CONFIG["uppercase"]:
+                    special_keys_combination = special_keys_combination.upper()
+
+                self.update_method(special_keys_combination)  # Display special key pressed alone
+                if CONFIG["enable_logging"]:
+                    logging.info(f"Key pressed: {special_keys_combination}")
+
             else:
-                valid_keys = [k for k in self.special_keys if k]
-                key_info = ' + '.join(sorted(valid_keys) + [key_info])
+                # Combine special keys (if any) with the current key pressed
+                combined_keys = ' + '.join(sorted(self.special_keys) + [key_info])
+                display_text = self.process_key_case(combined_keys)
+                self.update_method(display_text)
 
-            if CONFIG["uppercase"]:
-                key_info = key_info.upper()
+                if CONFIG["enable_logging"]:
+                    log_text = self.process_key_case(combined_keys, logging_mode=True)
+                    logging.info(f"Key pressed: {log_text}")
 
-            self.update_method(key_info)
-            if CONFIG["enable_logging"]:
-                logging.info(f"Key pressed: {key_info}")
+            # Handle caps lock
+            if key == keyboard.Key.caps_lock:
+                self.caps_lock_on = not self.caps_lock_on
+
         except Exception as e:
             logging.error(f"Error in on_press: {e}")
 
@@ -151,6 +164,7 @@ class ListenerThread(Thread):
             key_info = self.get_key_info(key)
             if key_info in self.special_keys:
                 self.special_keys.remove(key_info)
+
         except Exception as e:
             logging.error(f"Error in on_release: {e}")
 
@@ -161,8 +175,11 @@ class ListenerThread(Thread):
         try:
             if pressed:
                 button_info = self.mouse_action_map.get(str(button), str(button))
+                
+                # Ensure mouse button info is shown in uppercase
                 if CONFIG["uppercase"]:
                     button_info = button_info.upper()
+
                 self.update_method(button_info)
                 if CONFIG["enable_logging"]:
                     logging.info(f"Mouse clicked: {button_info}")
@@ -176,8 +193,11 @@ class ListenerThread(Thread):
         try:
             direction = 'Scroll up' if dy > 0 else 'Scroll down'
             scroll_info = self.mouse_action_map.get(direction, direction)
+
+            # Ensure scroll info is shown in uppercase
             if CONFIG["uppercase"]:
                 scroll_info = scroll_info.upper()
+
             self.update_method(scroll_info)
             if CONFIG["enable_logging"]:
                 logging.info(f"Mouse scrolled: {scroll_info}")
@@ -195,29 +215,43 @@ class ListenerThread(Thread):
         except AttributeError:
             return str(key)
 
+    def process_key_case(self, key_info, logging_mode=False):
+        """
+        Processes the key case (uppercase/lowercase) based on the configuration and whether logging or display is involved.
+        """
+        if CONFIG["log_case_sensitive"]:
+            # Determine if the key should be uppercase or lowercase
+            is_upper = self.shift_pressed != self.caps_lock_on
+            case_indicator = "UP" if is_upper else "LO"
+            key_info = key_info.upper() if is_upper else key_info.lower()
+            if logging_mode:
+                return f"{key_info} ({case_indicator})"  # Add case info only to the log
+            return key_info
+        else:
+            # If CONFIG["uppercase"] is True, make all keys uppercase
+            return key_info.upper() if CONFIG["uppercase"] else key_info
+
+
 class ScreenkeyApp(tk.Tk):
     """
     Main application class for Screenkey using Tkinter.
     """
     def __init__(self):
         super().__init__()
-        self.clear_timer = None  # Holds the timer object
+        self.clear_timer = None
         self.init_ui()
         self.stop_event = Event()
         self.listener_thread = ListenerThread(self.update_display, self.stop_event)
         self.listener_thread.start()
 
     def init_ui(self):
-        """
-        Initializes the user interface of the application.
-        """
         self.geometry(f"{CONFIG['window_width']}x{CONFIG['window_height']}+{CONFIG['window_x_position']}+{CONFIG['window_y_position']}")
         self.title('Screenkey v3.3')
         if CONFIG["always_on_top"]:
             self.attributes('-topmost', True)
 
-        self.label = tk.Label(self, text="", 
-                              font=(CONFIG["font_type"], CONFIG["font_size"], 
+        self.label = tk.Label(self, text="",
+                              font=(CONFIG["font_type"], CONFIG["font_size"],
                                     "bold" if CONFIG["font_bold"] else "normal"))
         self.label.pack(expand=True)
 
@@ -225,13 +259,9 @@ class ScreenkeyApp(tk.Tk):
         self.label.configure(fg=CONFIG["text_color"], bg=CONFIG["background_color"])
 
     def update_display(self, text):
-        """
-        Updates the display with the provided text.
-        """
         if not self.stop_event.is_set():
             self.label.config(text=text)
 
-            # Clear the text after a certain duration if the option is enabled
             if CONFIG["clear_text"]:
                 if self.clear_timer is not None:
                     self.clear_timer.cancel()
@@ -239,20 +269,15 @@ class ScreenkeyApp(tk.Tk):
                 self.clear_timer.start()
 
     def clear_display(self):
-        """
-        Clears the display text.
-        """
         self.label.config(text="")
 
     def on_close(self):
-        """
-        Handles the closing event of the application.
-        """
         self.stop_event.set()
         self.listener_thread.join()
         if self.clear_timer is not None:
             self.clear_timer.cancel()
         self.destroy()
+
 
 if __name__ == '__main__':
     try:
