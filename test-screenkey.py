@@ -71,7 +71,6 @@ class ListenerThread(Thread):
             keyboard.Key.ctrl_r: 'Right Control',
             keyboard.Key.alt: 'Alt',
             keyboard.Key.alt_r: 'Right Alt',
-            keyboard.Key.alt_gr: 'Alt Gr',
             keyboard.Key.menu: 'Menu',
             special_key_cmd: f'{platform_name} Key',
             keyboard.Key.esc: 'Esc',
@@ -113,14 +112,13 @@ class ListenerThread(Thread):
         }
 
     def run(self):
-        # Start listening for keyboard and mouse events in a separate thread
         try:
             with keyboard.Listener(on_press=self.on_press,
                                    on_release=self.on_release) as keyboard_listener, \
                  mouse.Listener(on_click=self.on_click,
                                 on_scroll=self.on_scroll) as mouse_listener:
-                keyboard_listener.join()
-                mouse_listener.join()
+                while not self.stop_event.is_set():
+                    self.stop_event.wait(0.1)
         except Exception as e:
             logging.error(f"Listener thread encountered an error: {e}")
 
@@ -134,12 +132,12 @@ class ListenerThread(Thread):
             # Modifier key check
             if key_info in ["CTRL", "ALT", "ALT GR", "SHIFT"]:
                 self.active_modifiers.add(key_info)
+                # Show modifier keys pressed alone
                 self.update_method(key_info)
 
             else:
                 # Combine modifier keys with regular key presses
-                key_char = self.get_character_from_key(key)
-                combined_keys = ' + '.join(sorted(self.active_modifiers) + [key_char])
+                combined_keys = ' + '.join(sorted(self.active_modifiers) + [key_info])
                 display_text = self.process_key_case(combined_keys)
                 self.update_method(display_text)
 
@@ -160,6 +158,39 @@ class ListenerThread(Thread):
         except Exception as e:
             logging.error(f"Error in on_release: {e}")
 
+    def on_click(self, x, y, button, pressed):
+        """
+        Handles the on_click event for mouse buttons.
+        """
+        try:
+            if pressed:
+                button_info = self.mouse_action_map.get(str(button), str(button))
+                if CONFIG["uppercase"]:
+                    button_info = button_info.upper()
+
+                self.update_method(button_info)
+                if CONFIG["enable_logging"]:
+                    logging.info(f"Mouse clicked: {button_info}")
+        except Exception as e:
+            logging.error(f"Error in on_click: {e}")
+
+    def on_scroll(self, x, y, dx, dy):
+        """
+        Handles the on_scroll event for mouse scrolling.
+        """
+        try:
+            direction = 'Scroll up' if dy > 0 else 'Scroll down'
+            scroll_info = self.mouse_action_map.get(direction, direction)
+
+            if CONFIG["uppercase"]:
+                scroll_info = scroll_info.upper()
+
+            self.update_method(scroll_info)
+            if CONFIG["enable_logging"]:
+                logging.info(f"Mouse scrolled: {scroll_info}")
+        except Exception as e:
+            logging.error(f"Error in on_scroll: {e}")
+
     def get_key_info(self, key):
         """
         Retrieves string representation for a given keyboard key.
@@ -170,6 +201,7 @@ class ListenerThread(Thread):
         if key in [keyboard.Key.alt_l, keyboard.Key.alt_r]:
             return "ALT"
         if key == keyboard.Key.alt_gr:
+            # Avoid showing CTRL + ALT for ALT GR
             return "ALT GR"
         if key in [keyboard.Key.shift, keyboard.Key.shift_r]:
             return "SHIFT"
@@ -187,16 +219,8 @@ class ListenerThread(Thread):
 
         # Handle regular character keys
         try:
+            # Fix for vertical rectangle: ensure character is displayed instead of VK code
             return key.char if key.char is not None else key.name
-        except AttributeError:
-            return key.name if hasattr(key, 'name') else f"<{key.vk}>"
-
-    def get_character_from_key(self, key):
-        """
-        Retrieve the character corresponding to the key, even with modifiers (e.g., CTRL + A shows 'A').
-        """
-        try:
-            return key.char.upper() if key.char else key.name
         except AttributeError:
             return key.name if hasattr(key, 'name') else f"<{key.vk}>"
 
