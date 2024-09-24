@@ -51,9 +51,7 @@ class ListenerThread(Thread):
         super().__init__()
         self.update_method = update_method
         self.stop_event = stop_event
-        self.special_keys = set()
-        self.active_modifiers = set()  # To track active modifier keys
-        self.caps_lock_on = False
+        self.active_modifiers = set()  # Track active modifier keys
         self.special_key_map = self.get_special_keys()
         self.mouse_action_map = self.get_mouse_actions()
 
@@ -131,26 +129,20 @@ class ListenerThread(Thread):
         try:
             key_info = self.get_key_info(key)
 
-            # Check if the key is a modifier key (Ctrl, Alt, Shift)
+            # Modifier key check
             if key_info in ["CTRL", "ALT", "ALT GR", "SHIFT"]:
                 self.active_modifiers.add(key_info)
-                # Display the modifier key if pressed alone
-                if len(self.active_modifiers) == 1:
-                    self.update_method(key_info)
+                # Show modifier keys pressed alone
+                self.update_method(key_info)
 
             else:
-                # Combine current modifiers with the key press
+                # Combine modifier keys with regular key presses
                 combined_keys = ' + '.join(sorted(self.active_modifiers) + [key_info])
                 display_text = self.process_key_case(combined_keys)
                 self.update_method(display_text)
 
                 if CONFIG["enable_logging"]:
-                    log_text = self.process_key_case(combined_keys, logging_mode=True)
-                    logging.info(f"Key pressed: {log_text}")
-
-            # Handle caps lock
-            if key == keyboard.Key.caps_lock:
-                self.caps_lock_on = not self.caps_lock_on
+                    logging.info(f"Key pressed: {display_text}")
 
         except Exception as e:
             logging.error(f"Error in on_press: {e}")
@@ -161,11 +153,8 @@ class ListenerThread(Thread):
         """
         try:
             key_info = self.get_key_info(key)
-            
-            # Remove from active modifiers if it's a modifier key
             if key_info in self.active_modifiers:
                 self.active_modifiers.remove(key_info)
-
         except Exception as e:
             logging.error(f"Error in on_release: {e}")
 
@@ -207,16 +196,16 @@ class ListenerThread(Thread):
         Retrieves string representation for a given keyboard key.
         """
         # Map left/right control, alt, and alt_gr to simpler forms
-        if key == keyboard.Key.ctrl_l or key == keyboard.Key.ctrl_r:
+        if key in [keyboard.Key.ctrl_l, keyboard.Key.ctrl_r]:
             return "CTRL"
-        if key == keyboard.Key.alt_l or key == keyboard.Key.alt_r:
+        if key in [keyboard.Key.alt_l, keyboard.Key.alt_r]:
             return "ALT"
         if key == keyboard.Key.alt_gr:
             return "ALT GR"
-        if key == keyboard.Key.shift or key == keyboard.Key.shift_r:
+        if key in [keyboard.Key.shift, keyboard.Key.shift_r]:
             return "SHIFT"
 
-        # Add virtual key codes for numpad keys on Windows
+        # Handle numpad keys (with virtual key codes)
         numpad_key_map = {
             96: '0', 97: '1', 98: '2', 99: '3',
             100: '4', 101: '5', 102: '6', 103: '7',
@@ -227,24 +216,17 @@ class ListenerThread(Thread):
         if hasattr(key, 'vk') and key.vk in numpad_key_map:
             return numpad_key_map[key.vk]
 
-        # Handle special keys
-        if key in self.special_key_map:
-            return self.special_key_map[key]
-
         # Handle regular character keys
         try:
             return key.char if key.char is not None else key.name
         except AttributeError:
-            return f"<{key.vk}>" if hasattr(key, 'vk') else str(key)
+            return key.name if hasattr(key, 'name') else f"<{key.vk}>"
 
-    def process_key_case(self, key_info, logging_mode=False):
+    def process_key_case(self, key_info):
         """
-        Processes the key case (uppercase/lowercase) based on the configuration and whether logging or display is involved.
+        Processes the key case (uppercase/lowercase) based on configuration.
         """
-        if CONFIG["log_case_sensitive"]:
-            return key_info  # Maintain exact case in logging
-        else:
-            return key_info.upper() if CONFIG["uppercase"] else key_info
+        return key_info.upper() if CONFIG["uppercase"] else key_info
 
 
 class ScreenkeyApp(tk.Tk):
