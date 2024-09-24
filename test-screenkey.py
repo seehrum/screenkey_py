@@ -215,6 +215,15 @@ class ListenerThread(Thread):
         """
         Retrieves string representation for a given keyboard key.
         """
+
+        # Map left/right control, alt, and alt_gr to simpler forms
+        if key == keyboard.Key.ctrl_l or key == keyboard.Key.ctrl_r:
+            return "CTRL"
+        if key == keyboard.Key.alt_l or key == keyboard.Key.alt_r:
+            return "ALT"
+        if key == keyboard.Key.alt_gr:
+            return "ALT GR"
+
         # Add virtual key codes for numpad keys on Windows
         numpad_key_map = {
             96: '0', 97: '1', 98: '2', 99: '3',
