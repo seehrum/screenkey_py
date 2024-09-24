@@ -246,7 +246,8 @@ class ListenerThread(Thread):
         try:
             return key.char if key.char is not None else key.name
         except AttributeError:
-            return str(key)
+            # Handle unknown key (such as <97> issue)
+            return f"<{key.vk}>" if hasattr(key, 'vk') else str(key)
 
     def process_key_case(self, key_info, logging_mode=False):
         """
