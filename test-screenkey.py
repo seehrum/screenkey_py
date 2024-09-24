@@ -201,6 +201,7 @@ class ListenerThread(Thread):
         if key in [keyboard.Key.alt_l, keyboard.Key.alt_r]:
             return "ALT"
         if key == keyboard.Key.alt_gr:
+            # Avoid showing CTRL + ALT for ALT GR
             return "ALT GR"
         if key in [keyboard.Key.shift, keyboard.Key.shift_r]:
             return "SHIFT"
@@ -218,6 +219,7 @@ class ListenerThread(Thread):
 
         # Handle regular character keys
         try:
+            # Fix for vertical rectangle: ensure character is displayed instead of VK code
             return key.char if key.char is not None else key.name
         except AttributeError:
             return key.name if hasattr(key, 'name') else f"<{key.vk}>"
