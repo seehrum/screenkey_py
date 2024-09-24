@@ -54,7 +54,6 @@ class ListenerThread(Thread):
         self.special_keys = set()
         self.active_modifiers = set()  # To track active modifier keys
         self.caps_lock_on = False
-        self.shift_pressed = False
         self.special_key_map = self.get_special_keys()
         self.mouse_action_map = self.get_mouse_actions()
 
@@ -135,6 +134,10 @@ class ListenerThread(Thread):
             # Check if the key is a modifier key (Ctrl, Alt, Shift)
             if key_info in ["CTRL", "ALT", "ALT GR", "SHIFT"]:
                 self.active_modifiers.add(key_info)
+                # Display the modifier key if pressed alone
+                if len(self.active_modifiers) == 1:
+                    self.update_method(key_info)
+
             else:
                 # Combine current modifiers with the key press
                 combined_keys = ' + '.join(sorted(self.active_modifiers) + [key_info])
@@ -239,12 +242,7 @@ class ListenerThread(Thread):
         Processes the key case (uppercase/lowercase) based on the configuration and whether logging or display is involved.
         """
         if CONFIG["log_case_sensitive"]:
-            is_upper = self.shift_pressed != self.caps_lock_on
-            case_indicator = "UP" if is_upper else "LO"
-            key_info = key_info.upper() if is_upper else key_info.lower()
-            if logging_mode:
-                return f"{key_info} ({case_indicator})"
-            return key_info
+            return key_info  # Maintain exact case in logging
         else:
             return key_info.upper() if CONFIG["uppercase"] else key_info
 
