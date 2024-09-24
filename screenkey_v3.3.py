@@ -1,8 +1,21 @@
 import sys
 import logging
+import os
 import tkinter as tk
 from pynput import mouse, keyboard
 from threading import Thread, Event, Timer
+
+# Platform-specific configuration for handling key mappings or other features
+if sys.platform == "win32":
+    platform_name = "Windows"
+    # Key mappings specific to Windows
+    special_key_cmd = keyboard.Key.cmd
+elif sys.platform == "linux":
+    platform_name = "Linux"
+    # Key mappings specific to Linux (Windows key is sometimes called "Super")
+    special_key_cmd = keyboard.Key.alt  # You can replace this with the actual key for the Linux Windows key
+else:
+    platform_name = "Unknown"
 
 # Configuration settings
 CONFIG = {
@@ -18,7 +31,7 @@ CONFIG = {
     "log_case_sensitive": False,  # New option to log exact case
     "always_on_top": True,
     "enable_logging": True,
-    "log_file": "key_log.txt",
+    "log_file": os.path.join(os.getcwd(), "key_log.txt"),
     "font_type": "Arial",
     "clear_text": False,
     "clear_text_duration": 5
@@ -127,7 +140,7 @@ class ListenerThread(Thread):
             key_info = self.get_key_info(key)
 
             # Handle shift, ctrl, alt key presses
-            if key in {keyboard.Key.shift, keyboard.Key.shift_r, keyboard.Key.ctrl, keyboard.Key.ctrl_r, keyboard.Key.alt, keyboard.KeyCode.from_vk(65027), keyboard.Key.alt_r}:
+            if key in {keyboard.Key.shift, keyboard.Key.shift_r, keyboard.Key.ctrl, keyboard.Key.ctrl_r, keyboard.Key.alt, keyboard.KeyCode.from_vk(65027), special_key_cmd, keyboard.Key.alt_r}:
                 self.special_keys.add(key_info)
                 special_keys_combination = ' + '.join(sorted(self.special_keys))
 
@@ -248,7 +261,10 @@ class ScreenkeyApp(tk.Tk):
         self.geometry(f"{CONFIG['window_width']}x{CONFIG['window_height']}+{CONFIG['window_x_position']}+{CONFIG['window_y_position']}")
         self.title('Screenkey v3.3')
         if CONFIG["always_on_top"]:
-            self.attributes('-topmost', True)
+            try:
+                self.attributes('-topmost', True)
+            except tk.TclError:
+                logging.warning(f"Always on top may not work on {platform_name}")
 
         self.label = tk.Label(self, text="",
                               font=(CONFIG["font_type"], CONFIG["font_size"],
