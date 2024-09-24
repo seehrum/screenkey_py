@@ -127,7 +127,7 @@ class ListenerThread(Thread):
             key_info = self.get_key_info(key)
 
             # Handle shift, ctrl, alt key presses
-            if key in {keyboard.Key.shift, keyboard.Key.shift_r, keyboard.Key.ctrl, keyboard.Key.ctrl_r, keyboard.Key.alt, keyboard.Key.alt_r}:
+            if key in {keyboard.Key.shift, keyboard.Key.shift_r, keyboard.Key.ctrl, keyboard.Key.ctrl_r, keyboard.Key.alt, keyboard.KeyCode.from_vk(65027), keyboard.Key.alt_r}:
                 self.special_keys.add(key_info)
                 special_keys_combination = ' + '.join(sorted(self.special_keys))
 
