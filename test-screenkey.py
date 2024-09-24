@@ -217,26 +217,15 @@ class ListenerThread(Thread):
         """
         # Add virtual key codes for numpad keys on Windows
         numpad_key_map = {
-            keyboard.KeyCode.from_vk(96): '0',
-            keyboard.KeyCode.from_vk(97): '1',
-            keyboard.KeyCode.from_vk(98): '2',
-            keyboard.KeyCode.from_vk(99): '3',
-            keyboard.KeyCode.from_vk(100): '4',
-            keyboard.KeyCode.from_vk(101): '5',
-            keyboard.KeyCode.from_vk(102): '6',
-            keyboard.KeyCode.from_vk(103): '7',
-            keyboard.KeyCode.from_vk(104): '8',
-            keyboard.KeyCode.from_vk(105): '9',
-            keyboard.KeyCode.from_vk(106): '*',
-            keyboard.KeyCode.from_vk(107): '+',
-            keyboard.KeyCode.from_vk(109): '-',
-            keyboard.KeyCode.from_vk(110): '.',
-            keyboard.KeyCode.from_vk(111): '/',
+            96: '0', 97: '1', 98: '2', 99: '3',
+            100: '4', 101: '5', 102: '6', 103: '7',
+            104: '8', 105: '9', 106: '*', 107: '+',
+            109: '-', 110: '.', 111: '/',
         }
 
         # Handle numpad key mapping for Windows
-        if key in numpad_key_map:
-            return numpad_key_map[key]
+        if hasattr(key, 'vk') and key.vk in numpad_key_map:
+            return numpad_key_map[key.vk]
 
         # Handle special keys
         if key in self.special_key_map:
