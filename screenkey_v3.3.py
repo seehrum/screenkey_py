@@ -56,6 +56,7 @@ class ListenerThread(Thread):
         self.special_keys = set()
         self.caps_lock_on = False  # Track the Caps Lock state
         self.shift_pressed = False  # Track if Shift is pressed
+        self.mouse_button_pressed = None  # NEW: Track the mouse button pressed
         self.special_key_map = self.get_special_keys()
         self.mouse_action_map = self.get_mouse_actions()
 
@@ -139,10 +140,20 @@ class ListenerThread(Thread):
         try:
             key_info = self.get_key_info(key)
 
+            # Combine the current key with any pressed mouse button (if pressed)
+            if self.mouse_button_pressed:  # NEW: Combine mouse button with key
+                combined_keys = f"{key_info} + {self.mouse_button_pressed}"
+            else:
+                combined_keys = key_info
+
             # Handle shift, ctrl, alt key presses
             if key in {keyboard.Key.shift, keyboard.Key.shift_r, keyboard.Key.ctrl, keyboard.Key.ctrl_r, keyboard.Key.alt, keyboard.KeyCode.from_vk(65027), special_key_cmd, keyboard.Key.alt_r}:
                 self.special_keys.add(key_info)
                 special_keys_combination = ' + '.join(sorted(self.special_keys))
+
+                # If a mouse button is pressed, include it in the combination
+                if self.mouse_button_pressed:
+                    special_keys_combination += f" + {self.mouse_button_pressed}"
 
                 # Ensure special keys are shown in uppercase
                 if CONFIG["uppercase"]:
@@ -154,7 +165,7 @@ class ListenerThread(Thread):
 
             else:
                 # Combine special keys (if any) with the current key pressed
-                combined_keys = ' + '.join(sorted(self.special_keys) + [key_info])
+                combined_keys = ' + '.join(sorted(self.special_keys) + [combined_keys])
                 display_text = self.process_key_case(combined_keys)
                 self.update_method(display_text)
 
@@ -187,8 +198,9 @@ class ListenerThread(Thread):
         """
         try:
             if pressed:
-                button_info = self.mouse_action_map.get(str(button), str(button))
-                
+                self.mouse_button_pressed = self.mouse_action_map.get(str(button), str(button))  # NEW: Track pressed mouse button
+                button_info = self.mouse_button_pressed
+
                 # Ensure mouse button info is shown in uppercase
                 if CONFIG["uppercase"]:
                     button_info = button_info.upper()
@@ -196,6 +208,9 @@ class ListenerThread(Thread):
                 self.update_method(button_info)
                 if CONFIG["enable_logging"]:
                     logging.info(f"Mouse clicked: {button_info}")
+            else:
+                self.mouse_button_pressed = None  # NEW: Reset mouse button state when released
+
         except Exception as e:
             logging.error(f"Error in on_click: {e}")
 
